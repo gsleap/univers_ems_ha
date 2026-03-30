@@ -1,4 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """Univers EMS Home Assistant Integration."""
+
 from __future__ import annotations
 
 import logging

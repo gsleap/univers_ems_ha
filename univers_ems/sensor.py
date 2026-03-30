@@ -1,4 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """Sensor platform for Univers EMS."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -40,9 +43,11 @@ def _mp_value(data: dict, point: str) -> float | None:
 # Raw measurement-point sensors
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class UniversSensorDescription(SensorEntityDescription):
     """Sensor that reads directly from a measurement point."""
+
     measurement_point: str = ""
     negate: bool = False
 
@@ -111,13 +116,13 @@ SENSOR_DESCRIPTIONS: tuple[UniversSensorDescription, ...] = (
 # Derived sensors (split signed values for Energy dashboard)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class UniversDerivedSensorDescription(SensorEntityDescription):
     """Sensor whose value is computed from coordinator data via a callable."""
+
     # Receives the full asset data dict, returns float | None
-    compute: Callable[[dict[str, Any]], float | None] = field(
-        default=lambda _: None
-    )
+    compute: Callable[[dict[str, Any]], float | None] = field(default=lambda _: None)
 
 
 def _pos(val: float | None) -> float | None:
@@ -142,7 +147,7 @@ DERIVED_DESCRIPTIONS: tuple[UniversDerivedSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower-import",
-        compute=lambda d: _pos(_mp_value(d, MP_GRID_POWER)),
+        compute=lambda d: _neg_as_pos(-_mp_value(d, MP_GRID_POWER)),
     ),
     UniversDerivedSensorDescription(
         key="grid_export_power",
@@ -151,7 +156,7 @@ DERIVED_DESCRIPTIONS: tuple[UniversDerivedSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower-export",
-        compute=lambda d: _neg_as_pos(_mp_value(d, MP_GRID_POWER)),
+        compute=lambda d: _pos(_mp_value(d, MP_GRID_POWER)),
     ),
     UniversDerivedSensorDescription(
         key="battery_charge_power",
@@ -178,6 +183,7 @@ DERIVED_DESCRIPTIONS: tuple[UniversDerivedSensorDescription, ...] = (
 # Setup
 # ---------------------------------------------------------------------------
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -187,20 +193,15 @@ async def async_setup_entry(
     coordinator: UniversEMSCoordinator = hass.data[DOMAIN][entry.entry_id]
     asset_id: str = entry.data["asset_id"]
 
-    entities: list[SensorEntity] = [
-        UniversEMSSensor(coordinator, desc, asset_id)
-        for desc in SENSOR_DESCRIPTIONS
-    ]
-    entities += [
-        UniversEMSDerivedSensor(coordinator, desc, asset_id)
-        for desc in DERIVED_DESCRIPTIONS
-    ]
+    entities: list[SensorEntity] = [UniversEMSSensor(coordinator, desc, asset_id) for desc in SENSOR_DESCRIPTIONS]
+    entities += [UniversEMSDerivedSensor(coordinator, desc, asset_id) for desc in DERIVED_DESCRIPTIONS]
     async_add_entities(entities)
 
 
 # ---------------------------------------------------------------------------
 # Entity classes
 # ---------------------------------------------------------------------------
+
 
 class _UniversEMSBase(CoordinatorEntity[UniversEMSCoordinator], SensorEntity):
     """Shared base for all Univers EMS sensor entities."""
@@ -234,9 +235,7 @@ class UniversEMSSensor(_UniversEMSBase):
     def native_value(self) -> float | None:
         if self.coordinator.data is None:
             return None
-        val = _mp_value(
-            self.coordinator.data, self.entity_description.measurement_point
-        )
+        val = _mp_value(self.coordinator.data, self.entity_description.measurement_point)
         if val is None:
             return None
         if self.entity_description.negate:
@@ -247,11 +246,7 @@ class UniversEMSSensor(_UniversEMSBase):
     def extra_state_attributes(self) -> dict[str, Any]:
         if self.coordinator.data is None:
             return {}
-        mp_data = (
-            self.coordinator.data
-            .get("measurementPoints", {})
-            .get(self.entity_description.measurement_point, {})
-        )
+        mp_data = self.coordinator.data.get("measurementPoints", {}).get(self.entity_description.measurement_point, {})
         return {
             "last_updated_local": mp_data.get("localtime"),
             "last_updated_ts": mp_data.get("timestamp"),

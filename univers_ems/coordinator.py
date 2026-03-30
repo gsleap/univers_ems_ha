@@ -1,4 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """DataUpdateCoordinator for Univers EMS."""
+
 from __future__ import annotations
 
 import logging
@@ -36,4 +39,4 @@ class UniversEMSCoordinator(DataUpdateCoordinator):
         try:
             return await self.client.async_get_data()
         except UniversEMSError as err:
-            raise UpdateFailed(f"Univers EMS update failed: {err}") from err
+            raise UpdateFailed(f"Univers EMS HA update failed: {err}") from err

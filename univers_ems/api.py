@@ -1,4 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """API client for Univers EMS / EnOS platform."""
+
 from __future__ import annotations
 
 import base64
@@ -77,27 +80,19 @@ class UniversEMSClient:
         try:
             async with self._session.post(url, json=payload) as resp:
                 if resp.status != 200:
-                    raise UniversEMSAuthError(
-                        f"Login HTTP error {resp.status}"
-                    )
+                    raise UniversEMSAuthError(f"Login HTTP error {resp.status}")
                 data = await resp.json()
         except aiohttp.ClientError as err:
             raise UniversEMSError(f"Login request failed: {err}") from err
 
         if data.get("code") not in (0, 200):
-            raise UniversEMSAuthError(
-                f"Login rejected: {data.get('message', 'unknown error')}"
-            )
+            raise UniversEMSAuthError(f"Login rejected: {data.get('message', 'unknown error')}")
 
         initial_token = data.get("data", {}).get("accessToken")
         if not initial_token:
             raise UniversEMSAuthError("Login succeeded but no accessToken returned")
 
-        org_id = (
-            data.get("data", {})
-            .get("organizations", [{}])[0]
-            .get("id")
-        )
+        org_id = data.get("data", {}).get("organizations", [{}])[0].get("id")
         if not org_id:
             raise UniversEMSAuthError("Login succeeded but no organizationId returned")
         self._org_id = org_id
@@ -122,9 +117,7 @@ class UniversEMSClient:
             raise UniversEMSError(f"Session set request failed: {err}") from err
 
         if sdata.get("code") not in (0, 200):
-            raise UniversEMSAuthError(
-                f"Session set rejected: {sdata.get('message', 'unknown error')}"
-            )
+            raise UniversEMSAuthError(f"Session set rejected: {sdata.get('message', 'unknown error')}")
 
         upgraded_token = sdata.get("data", {}).get("accessToken", initial_token)
         self._token = upgraded_token
@@ -174,9 +167,7 @@ class UniversEMSClient:
             "measurementPoints": DETAIL_POINTS,
         }
         try:
-            async with self._session.post(
-                DETAIL_URL, json=body, headers=headers
-            ) as resp:
+            async with self._session.post(DETAIL_URL, json=body, headers=headers) as resp:
                 if resp.status == 401:
                     self._token = None
                     return None
@@ -191,14 +182,10 @@ class UniversEMSClient:
                 # Auth exception — token likely expired
                 self._token = None
                 return None
-            raise UniversEMSError(
-                f"API error: {data.get('message', 'unknown')}"
-            )
+            raise UniversEMSError(f"API error: {data.get('message', 'unknown')}")
 
         asset_data = data.get("data", {}).get(self._asset_id)
         if not asset_data:
-            raise UniversEMSError(
-                f"Asset ID '{self._asset_id}' not found in response"
-            )
+            raise UniversEMSError(f"Asset ID '{self._asset_id}' not found in response")
 
         return asset_data

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """
 Integration test for Univers EMS using the actual api.py component code.
 Runs UniversEMSClient.async_login() and async_get_data() exactly as HA would.
@@ -124,8 +126,8 @@ def _neg_as_pos(val: float | None) -> float | None:
 
 
 DERIVED = {
-    "Grid Import Power": (MP_GRID_POWER, _pos),
-    "Grid Export Power": (MP_GRID_POWER, _neg_as_pos),
+    "Grid Import Power": (MP_GRID_POWER, _neg_as_pos),
+    "Grid Export Power": (MP_GRID_POWER, _pos),
     "Battery Charge Power": (MP_BATTERY_POWER, _pos),
     "Battery Discharge Power": (MP_BATTERY_POWER, _neg_as_pos),
 }

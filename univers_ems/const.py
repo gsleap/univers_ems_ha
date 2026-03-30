@@ -1,13 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Greg Sleap
 """Constants for the Univers EMS integration."""
 
 DOMAIN = "univers_ems"
 MANUFACTURER = "iStore / Envision EnOS"
 
 # API endpoints
-BASE_URL    = "https://app-portal-eu2.envisioniot.com"
-LOGIN_URL    = f"{BASE_URL}/app-portal/web/v1/login"
-SESSION_URL  = f"{BASE_URL}/app-portal/web/v1/session/set"
-DETAIL_URL   = f"{BASE_URL}/hossain-bff/monitor/v1.0/asset/detail"
+BASE_URL = "https://app-portal-eu2.envisioniot.com"
+LOGIN_URL = f"{BASE_URL}/app-portal/web/v1/login"
+SESSION_URL = f"{BASE_URL}/app-portal/web/v1/session/set"
+DETAIL_URL = f"{BASE_URL}/hossain-bff/monitor/v1.0/asset/detail"
 REFERER_BASE = f"{BASE_URL}/hossain-fe/index.html"
 
 # App ID (from portal URL)
@@ -36,21 +38,23 @@ CONF_ASSET_ID = "asset_id"
 DEFAULT_SCAN_INTERVAL = 60  # seconds
 
 # Measurement point IDs
-MP_PV_POWER        = "PUB_SITE.PVOutputPower"
-MP_BATTERY_POWER   = "PUB_SITE.BSActivePW"
-MP_BATTERY_SOC     = "PUB_SITE.Soc"
-MP_GRID_POWER      = "PUB_SITE.METERActivePW"
-MP_LOAD_POWER      = "ConsPower"
-MP_GEN_POWER       = "SITE.GenActivePW"
+MP_PV_POWER = "PUB_SITE.PVOutputPower"
+MP_BATTERY_POWER = "PUB_SITE.BSActivePW"
+MP_BATTERY_SOC = "PUB_SITE.Soc"
+MP_GRID_POWER = "PUB_SITE.METERActivePW"
+MP_LOAD_POWER = "ConsPower"
+MP_GEN_POWER = "SITE.GenActivePW"
 
 # Attributes to request alongside measurement points
 DETAIL_ATTRIBUTES = "gmtAmount,batteryStorageAmount,strInvAmount,powerDirection"
-DETAIL_POINTS = ",".join([
-    MP_PV_POWER,
-    MP_GRID_POWER,
-    MP_BATTERY_POWER,
-    MP_LOAD_POWER,
-    MP_GEN_POWER,
-    MP_BATTERY_SOC,
-    "PUB_SITE.EVChargingPW",
-])
+DETAIL_POINTS = ",".join(
+    [
+        MP_PV_POWER,
+        MP_GRID_POWER,
+        MP_BATTERY_POWER,
+        MP_LOAD_POWER,
+        MP_GEN_POWER,
+        MP_BATTERY_SOC,
+        "PUB_SITE.EVChargingPW",
+    ]
+)
