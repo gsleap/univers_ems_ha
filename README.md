@@ -2,6 +2,9 @@
 
 A custom Home Assistant integration for the **Univers EMS** solar monitoring app by [iStore Australia](https://istoreaustralia.com.au/). Polls live data from the Envision EnOS cloud platform and exposes solar, battery, and grid sensors directly in Home Assistant.
 
+**⚠️ Important**
+This is my own work, making use of public API's and is not associated with, or supported by Univers or iStore. Use at your own risk- it's new and not very well tested!
+
 ---
 
 ## Sensors
