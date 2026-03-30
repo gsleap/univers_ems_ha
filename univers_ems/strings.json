@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Univers EMS (iStore Solar)",
+        "description": "Enter your Univers EMS portal credentials.",
+        "data": {
+          "username": "Email / Username",
+          "password": "Password",
+          "asset_id": "Asset ID (from portal URL — e.g. a1b2c3d4)",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not connect to the Univers EMS portal. Check your internet connection.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This asset is already configured."
+    }
+  }
+}

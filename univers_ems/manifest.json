@@ -1,0 +1,12 @@
+{
+  "domain": "univers_ems",
+  "name": "Univers EMS (iStore Solar)",
+  "version": "1.0.0",
+  "documentation": "https://github.com/your-repo/univers-ems-ha",
+  "issue_tracker": "https://github.com/your-repo/univers-ems-ha/issues",
+  "requirements": ["cryptography>=3.4.8"],
+  "dependencies": [],
+  "codeowners": [],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
