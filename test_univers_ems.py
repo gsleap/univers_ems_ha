@@ -1,11 +1,9 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Greg Sleap
 """
 Standalone sanity test for Univers EMS API.
 Requires: pip install aiohttp cryptography
 
 Usage:
-    UNIVERS_EMS_ASSET_ID=a1b2c3d4 python test_univers_ems.py
+    UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems.py
 """
 
 import asyncio
@@ -29,7 +27,7 @@ LOGIN_KEY_ID = "FIXED_KEY_ID"
 ASSET_ID = os.environ.get("UNIVERS_EMS_ASSET_ID", "").strip()
 if not ASSET_ID:
     print("❌  UNIVERS_EMS_ASSET_ID environment variable not set.")
-    print("    Usage: UNIVERS_EMS_ASSET_ID=a1b2c3d4 python test_univers_ems.py")
+    print("    Usage: UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems.py")
     sys.exit(1)
 
 PUBLIC_KEY_PEM = (
@@ -60,9 +58,10 @@ DETAIL_POINTS = (
 )
 
 # Derived sensor logic (mirrors sensor.py)
+# Grid: positive = export, negative = import
 DERIVED = {
-    "Grid Import Power": ("PUB_SITE.METERActivePW", lambda v: max(v, 0)),
-    "Grid Export Power": ("PUB_SITE.METERActivePW", lambda v: max(-v, 0)),
+    "Grid Import Power": ("PUB_SITE.METERActivePW", lambda v: max(-v, 0)),
+    "Grid Export Power": ("PUB_SITE.METERActivePW", lambda v: max(v, 0)),
     "Battery Charge Power": ("PUB_SITE.BSActivePW", lambda v: max(v, 0)),
     "Battery Discharge Power": ("PUB_SITE.BSActivePW", lambda v: max(-v, 0)),
 }

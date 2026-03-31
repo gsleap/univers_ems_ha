@@ -1,12 +1,10 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Greg Sleap
 """
 Integration test for Univers EMS using the actual api.py component code.
 Runs UniversEMSClient.async_login() and async_get_data() exactly as HA would.
 Requires: pip install aiohttp cryptography
 
 Usage:
-    UNIVERS_EMS_ASSET_ID=a1b2c3d4 python test_univers_ems_integration.py
+    UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_integration.py
 
 Place this file alongside the univers_ems/ folder, e.g.:
     /your/path/
@@ -90,8 +88,8 @@ _stub("homeassistant", core=MagicMock, config_entries=MagicMock)
 
 # ── Import actual component code ──────────────────────────────────────────────
 try:
-    from univers_ems.api import UniversEMSClient, UniversEMSAuthError, UniversEMSError
-    from univers_ems.const import (
+    from custom_components.univers_ems.api import UniversEMSClient, UniversEMSAuthError, UniversEMSError
+    from custom_components.univers_ems.const import (
         MP_PV_POWER,
         MP_BATTERY_POWER,
         MP_BATTERY_SOC,
@@ -107,7 +105,7 @@ except ImportError as e:
 ASSET_ID = os.environ.get("UNIVERS_EMS_ASSET_ID", "").strip()
 if not ASSET_ID:
     print("❌  UNIVERS_EMS_ASSET_ID environment variable not set.")
-    print("    Usage: UNIVERS_EMS_ASSET_ID=a1b2c3d4 python test_univers_ems_integration.py")
+    print("    Usage: UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_integration.py")
     sys.exit(1)
 
 
@@ -125,6 +123,7 @@ def _neg_as_pos(val: float | None) -> float | None:
     return round(max(-val, 0.0), 3) if val is not None else None
 
 
+# Grid: positive = export, negative = import
 DERIVED = {
     "Grid Import Power": (MP_GRID_POWER, _neg_as_pos),
     "Grid Export Power": (MP_GRID_POWER, _pos),

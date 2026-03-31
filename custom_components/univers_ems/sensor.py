@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Greg Sleap
 """Sensor platform for Univers EMS."""
 
 from __future__ import annotations
@@ -89,7 +87,7 @@ SENSOR_DESCRIPTIONS: tuple[UniversSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower",
-        # Positive = import, negative = export
+        # Positive = export, negative = import
     ),
     UniversSensorDescription(
         key="load_power",
@@ -147,7 +145,7 @@ DERIVED_DESCRIPTIONS: tuple[UniversDerivedSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower-import",
-        compute=lambda d: _neg_as_pos(-_mp_value(d, MP_GRID_POWER)),
+        compute=lambda d: _neg_as_pos(_mp_value(d, MP_GRID_POWER)),
     ),
     UniversDerivedSensorDescription(
         key="grid_export_power",
