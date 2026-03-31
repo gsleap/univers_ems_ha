@@ -1,7 +1,7 @@
 {
   "domain": "univers_ems",
   "name": "Univers EMS",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "documentation": "https://github.com/gsleap/univers-ems-ha",
   "issue_tracker": "https://github.com/gsleap/univers-ems-ha/issues",
   "requirements": [
