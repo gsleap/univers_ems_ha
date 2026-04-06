@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Greg Sleap
+
 """Constants for the Univers EMS integration."""
 
 DOMAIN = "univers_ems"
@@ -9,7 +10,9 @@ MANUFACTURER = "iStore / Envision EnOS"
 BASE_URL = "https://app-portal-eu2.envisioniot.com"
 LOGIN_URL = f"{BASE_URL}/app-portal/web/v1/login"
 SESSION_URL = f"{BASE_URL}/app-portal/web/v1/session/set"
+ASSET_LIST_URL = f"{BASE_URL}/hossain-bff/monitor/v1.0/asset/list"
 DETAIL_URL = f"{BASE_URL}/hossain-bff/monitor/v1.0/asset/detail"
+CONTROL_URL = f"{BASE_URL}/hossain-bff/connect/v1.0/device/control"
 REFERER_BASE = f"{BASE_URL}/hossain-fe/index.html"
 
 # App ID (from portal URL)
@@ -33,11 +36,13 @@ PUBLIC_KEY_PEM = (
 
 # Config entry keys
 CONF_ASSET_ID = "asset_id"
+CONF_INVERTER_ASSET_ID = "inverter_asset_id"
+CONF_STORAGE_ASSET_ID = "storage_asset_id"
 
 # Defaults
 DEFAULT_SCAN_INTERVAL = 60  # seconds
 
-# Measurement point IDs
+# Measurement point IDs — site-level (existing)
 MP_PV_POWER = "PUB_SITE.PVOutputPower"
 MP_BATTERY_POWER = "PUB_SITE.BSActivePW"
 MP_BATTERY_SOC = "PUB_SITE.Soc"
@@ -45,8 +50,47 @@ MP_GRID_POWER = "PUB_SITE.METERActivePW"
 MP_LOAD_POWER = "ConsPower"
 MP_GEN_POWER = "SITE.GenActivePW"
 
+# Measurement point IDs — inverter-level control (new)
+MP_CHARGE_OR_DISCHARGE = "PUB_INV_Hossain.ChargeOrDischarge"
+MP_FORCED_CHARGE_PWR = "PUB_INV_Hossain.ForcedChargePwr"
+MP_FORCED_DISCHARGE_PWR = "PUB_INV_Hossain.ForcedDischargePwr"
+MP_FORCED_PERIOD = "PUB_INV_Hossain.ForcedChargeDischagrePeriod"
+
+CONTROL_MEASUREMENT_POINTS = ",".join([
+    MP_CHARGE_OR_DISCHARGE,
+    MP_FORCED_CHARGE_PWR,
+    MP_FORCED_DISCHARGE_PWR,
+    MP_FORCED_PERIOD,
+])
+
+# ChargeOrDischarge mode values
+CHARGE_OR_DISCHARGE_IDLE = 0
+CHARGE_OR_DISCHARGE_CHARGE = 1
+CHARGE_OR_DISCHARGE_DISCHARGE = 2
+
+CHARGE_OR_DISCHARGE_OPTIONS: dict[int, str] = {
+    CHARGE_OR_DISCHARGE_IDLE: "Idle",
+    CHARGE_OR_DISCHARGE_CHARGE: "Charge",
+    CHARGE_OR_DISCHARGE_DISCHARGE: "Discharge",
+}
+
+# Forced power limits (kW)
+FORCED_POWER_MIN = 0
+FORCED_POWER_MAX = 20
+
+# Forced period limits (minutes)
+FORCED_PERIOD_MIN = 1
+FORCED_PERIOD_MAX = 1440
+
+# mdmTypes to request when discovering child devices
+ASSET_LIST_MDM_TYPES = (
+    "Dongle,Smart_Logger,Res_Inverter,Res_Storage,Res_Meter,"
+    "Res_WaterHeater,Res_EV_Charger,Res_EV_Connector,Res_WeatherStation"
+)
+
 # Attributes to request alongside measurement points
 DETAIL_ATTRIBUTES = "gmtAmount,batteryStorageAmount,strInvAmount,powerDirection"
+
 DETAIL_POINTS = ",".join(
     [
         MP_PV_POWER,

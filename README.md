@@ -10,7 +10,7 @@ This is my own work, making use of public API's and is not associated with, or s
 ## Sensors
 
 | Entity | Description | Unit | Sign convention |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `sensor.univers_ems_solar_site_pv_power` | Solar panel output | kW | Always ≥ 0 |
 | `sensor.univers_ems_solar_site_battery_power` | Battery charge/discharge | kW | + = charging, − = discharging |
 | `sensor.univers_ems_solar_site_battery_state_of_charge` | Battery level | % | 0–100 |
@@ -26,11 +26,91 @@ The four **derived** sensors split the signed raw values into non-negative halve
 
 ---
 
+## Forced Charge/Discharge Control (v0.0.5+)
+
+In addition to monitoring, the integration can control the battery's forced charge/discharge behaviour — the same settings available in the Univers EMS app under **Parameter Setting → Forced Charge/Discharge**.
+
+### Control entities
+
+| Entity | Type | Description | Range |
+| --- | --- | --- | --- |
+| `select.univers_ems_solar_site_forced_mode` | Select | Operating mode | Idle / Charge / Discharge |
+| `number.univers_ems_solar_site_forced_charge_power` | Number | Forced charge rate | 0–20 kW |
+| `number.univers_ems_solar_site_forced_discharge_power` | Number | Forced discharge rate | 0–20 kW |
+| `number.univers_ems_solar_site_forced_charge_discharge_period` | Number | Duration | 1–1440 min |
+
+### How it works
+
+The control entities use a **stage-then-commit** pattern, mirroring how the Univers EMS web app works:
+
+1. Set the select and/or number entities to the desired values in HA
+2. Call the `univers_ems.send_forced_control` service to send the changes to the inverter
+
+The service only sends parameters that have **changed** from the current API state — this is important because the inverter API rejects certain parameter combinations (e.g. sending a charge power value when switching to discharge mode).
+
+After a successful send, the integration triggers an immediate coordinator refresh to confirm the new state from the API.
+
+### Calling the service
+
+In **Developer Tools → Services**, call:
+
+```yaml
+service: univers_ems.send_forced_control
+```
+
+No parameters are required — the service reads staged values from the control entities automatically.
+
+### Automation example — daily grid export
+
+This example sets the battery to discharge at 5 kW for 2 hours every weekday at 5 PM (peak tariff period):
+
+```yaml
+automation:
+  - alias: "Battery export peak period"
+    trigger:
+      - platform: time
+        at: "17:00:00"
+    condition:
+      - condition: time
+        weekday: [mon, tue, wed, thu, fri]
+    action:
+      - service: select.select_option
+        target:
+          entity_id: select.univers_ems_solar_site_forced_mode
+        data:
+          option: Discharge
+      - service: number.set_value
+        target:
+          entity_id: number.univers_ems_solar_site_forced_discharge_power
+        data:
+          value: 5
+      - service: number.set_value
+        target:
+          entity_id: number.univers_ems_solar_site_forced_charge_discharge_period
+        data:
+          value: 120
+      - service: univers_ems.send_forced_control
+```
+
+### Staging and pending state
+
+Each control entity exposes three extra state attributes useful for dashboards and debugging:
+
+| Attribute | Description |
+| --- | --- |
+| `polled_value` | Last value confirmed by the API |
+| `staged_value` | Value set locally but not yet sent |
+| `pending_send` | `true` if a staged value is waiting to be committed |
+
+Staged values are cleared automatically after a successful `send_forced_control` call, or on the next coordinator poll (every 60 seconds).
+
+---
+
 ## Requirements
 
-- Home Assistant 2023.6 or later
-- A valid Univers EMS account (the same credentials used to log into the Univers EMS app or portal)
-- Your **Asset ID** — an 8-character code identifying your site (e.g. `a1b2c3d4`). See [Finding your Asset ID](#finding-your-asset-id) below.
+* Home Assistant 2023.6 or later
+* A valid Univers EMS account (the same credentials used to log into the Univers EMS app or portal)
+* Your **Asset ID** — an 8-character code identifying your site (e.g. `a1b2c3d4`). See [Finding your Asset ID](#finding-your-asset-id) below.
 
 ---
 
@@ -47,6 +127,7 @@ The four **derived** sensors split the signed raw values into non-negative halve
 
 1. Download or clone this repository
 2. Copy the `univers_ems/` folder into your HA config directory:
+
    ```
    config/
    └── custom_components/
@@ -57,10 +138,14 @@ The four **derived** sensors split the signed raw values into non-negative halve
            ├── const.py
            ├── coordinator.py
            ├── manifest.json
+           ├── number.py
+           ├── select.py
            ├── sensor.py
            └── strings.json
    ```
 3. Restart Home Assistant
+
+> **Note for users upgrading from v0.0.4:** The integration now auto-discovers your inverter and battery device IDs during setup. You will need to **remove and re-add the integration** after upgrading to v0.0.5 — existing config entries will not have the required device IDs stored.
 
 ---
 
@@ -69,11 +154,11 @@ The four **derived** sensors split the signed raw values into non-negative halve
 1. In Home Assistant, go to **Settings → Devices & Services → Add Integration**
 2. Search for **Univers EMS**
 3. Fill in the form:
-   - **Username** — your Univers EMS portal email address
-   - **Password** — your Univers EMS portal password
-   - **Asset ID** — your 8-character site identifier (see below)
-   - **Poll interval** — how often to fetch live data in seconds (default: 60)
-4. Click **Submit** — the integration will verify your credentials before saving
+   * **Username** — your Univers EMS portal email address
+   * **Password** — your Univers EMS portal password
+   * **Asset ID** — your 8-character site identifier (see below)
+   * **Poll interval** — how often to fetch live data in seconds (default: 60)
+4. Click **Submit** — the integration will verify your credentials and auto-discover your inverter and battery device IDs before saving
 
 ---
 
@@ -81,7 +166,7 @@ The four **derived** sensors split the signed raw values into non-negative halve
 
 The Asset ID is visible in the URL when you open the Univers EMS web portal:
 
-1. Log into [https://app-portal-eu2.envisioniot.com](https://app-portal-eu2.envisioniot.com)
+1. Log into <https://app-portal-eu2.envisioniot.com>
 2. Navigate to your site dashboard
 3. Look at the browser URL — it will contain `siteId=XXXXXXXX` where `XXXXXXXX` is your Asset ID
 
@@ -96,7 +181,7 @@ The integration provides instantaneous power sensors (kW). To use them in the Ho
 Go to **Settings → Devices & Services → Helpers → Add Helper → Integrate sensor** and create one helper for each of the following:
 
 | Helper name | Source sensor | Method | Precision |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Univers PV Energy | `…pv_power` | Trapezoidal | 3 |
 | Univers Grid Import Energy | `…grid_import_power` | Trapezoidal | 3 |
 | Univers Grid Export Energy | `…grid_export_power` | Trapezoidal | 3 |
@@ -109,7 +194,7 @@ Go to **Settings → Devices & Services → Helpers → Add Helper → Integrate
 Go to **Settings → Energy** and assign:
 
 | Energy Dashboard field | Helper to use |
-|---|---|
+| --- | --- |
 | ⚡ Solar production | Univers PV Energy |
 | 🔌 Grid consumption | Univers Grid Import Energy |
 | 🔄 Return to grid | Univers Grid Export Energy |
@@ -122,66 +207,45 @@ Go to **Settings → Energy** and assign:
 
 ## Test Scripts
 
-Two standalone test scripts are included to verify connectivity and credentials outside of Home Assistant.
+Three standalone test scripts are included to verify connectivity outside of Home Assistant.
 
 ### Prerequisites
 
-```bash
+```
 pip install aiohttp cryptography
 ```
 
 ### Environment variable
 
-Both scripts require your Asset ID to be set as an environment variable:
+All scripts require your Asset ID to be set as an environment variable:
 
-```bash
+```
 export UNIVERS_EMS_ASSET_ID=your_asset_id_here
 ```
 
-Or inline per run (see examples below). The Asset ID is kept out of the scripts to avoid accidentally committing it to source control.
-
 ### `test_univers_ems.py` — Basic API sanity test
 
-Tests the raw API directly: login, session upgrade, and live data fetch. Useful for quickly verifying credentials and connectivity without any component code involved.
+Tests the raw API directly: login, session upgrade, and live data fetch.
 
-```bash
+```
 UNIVERS_EMS_ASSET_ID=your_asset_id python test_univers_ems.py
 ```
 
-Expected output:
+### `test_ha_univers_ems.py` — Component integration test
+
+Imports and runs the actual `api.py` component code exactly as Home Assistant would. If this passes, the HA integration will work.
+
 ```
-✅  Login OK (initial token)
-✅  Session set OK (upgraded token)
-✅  Asset data received
-
-── Step 4: Raw measurement points ──────────────────────
-    PV Power                     0.0 kW   [2026-03-30 22:31:34]
-    Battery Power               -0.403 kW [2026-03-30 22:31:34]
-    Battery SOC                 62.0 %    [2026-03-30 22:30:46]
-    Grid Power                   0.006 kW [2026-03-30 22:31:34]
-    Load Power                   0.397 kW [2026-03-30 22:31:34]
-    Generation Power             0.403 kW [2026-03-30 22:31:34]
-
-── Step 5: Derived sensors ─────────────────────────────
-    Grid Import Power            0.006 kW
-    Grid Export Power            0.0 kW
-    Battery Charge Power         0.0 kW
-    Battery Discharge Power      0.403 kW
+UNIVERS_EMS_ASSET_ID=your_asset_id python test_ha_univers_ems.py
 ```
 
-### `test_univers_ems_integration.py` — Component integration test
+### `test_univers_ems_control.py` — Forced control test
 
-Imports and runs the **actual `api.py` component code** exactly as Home Assistant would. This is the definitive pre-install check — if this passes, the HA integration will work.
+Interactively tests the forced charge/discharge control API: discovers device IDs, reads current settings, prompts for new values (defaulting to current), and sends changes to the inverter.
 
-```bash
-UNIVERS_EMS_ASSET_ID=your_asset_id python test_univers_ems_integration.py
 ```
-
-This test:
-1. Instantiates `UniversEMSClient` exactly as `__init__.py` does
-2. Calls `async_login()` exactly as the coordinator's first refresh does
-3. Calls `async_get_data()` exactly as each 60-second coordinator tick does
-4. Performs a second poll to verify token reuse works correctly
+UNIVERS_EMS_ASSET_ID=your_asset_id python test_univers_ems_control.py
+```
 
 ---
 
@@ -195,9 +259,17 @@ The password is RSA-encrypted before sending. This error means the encryption ke
 
 **Sensors show `unavailable`**
 Check the HA logs for errors from `univers_ems`. Common causes:
-- Incorrect credentials
-- The Univers EMS portal is unreachable (cloud dependency)
-- Token expired and re-login failed
+
+* Incorrect credentials
+* The Univers EMS portal is unreachable (cloud dependency)
+* Token expired and re-login failed
+
+**`send_forced_control` service has no effect**
+Check the HA logs for `univers_ems`. Common causes:
+
+* The integration has not fully loaded — wait for first coordinator refresh
+* No values have changed from the current API state — the service only sends diffs
+* The inverter rejected a parameter combination — check logs for the API error message
 
 **Wrong sign on battery or grid sensors**
 The sign conventions follow the raw API values. If your system reports them inverted, please open an issue with details of your hardware configuration.
@@ -209,13 +281,20 @@ The sign conventions follow the raw API values. If your system reports them inve
 The integration authenticates against Envision's EnOS platform hosted at `app-portal-eu2.envisioniot.com`. Authentication requires a two-step flow:
 
 1. `POST /app-portal/web/v1/login` — initial login with RSA-encrypted password
-2. `POST /app-portal/web/v1/session/set` — session upgrade that returns the token with full API permissions
+2. `POST /app-portal/web/v1/session/set` — session upgrade that returns a token with full API permissions
 
-The token is then used as a `Bearer` token for all subsequent data requests. On token expiry (HTTP 401 or API code 88202), the integration automatically re-authenticates.
+During setup, the integration calls `POST /hossain-bff/monitor/v1.0/asset/list` to automatically discover the inverter (`Res_Inverter`) and battery (`Res_Storage`) device IDs under the site asset. These are stored in the config entry and used for all subsequent control operations.
 
 Data is fetched from:
+
 ```
 POST /hossain-bff/monitor/v1.0/asset/detail
 ```
 
-Poll interval defaults to 60 seconds, configurable at setup time.
+Control commands are sent to:
+
+```
+POST /hossain-bff/connect/v1.0/device/control
+```
+
+Poll interval defaults to 60 seconds, configurable at setup time. The control endpoint only sends parameters that have changed from the last polled state, mirroring the behaviour of the Univers EMS web app.

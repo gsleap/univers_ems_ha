@@ -20,5 +20,11 @@
     "abort": {
       "already_configured": "This asset is already configured."
     }
+  },
+  "services": {
+    "send_forced_control": {
+      "name": "Send Forced Control",
+      "description": "Sends staged forced charge/discharge settings to the inverter. Only parameters that have changed from the current API state are sent. Set the desired values on the Forced Mode, Forced Charge Power, Forced Discharge Power, and/or Forced Period entities first, then call this service to commit them."
+    }
   }
 }
