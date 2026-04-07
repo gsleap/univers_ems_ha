@@ -1,7 +1,7 @@
 [project]
 dependencies = ["aiohttp", "cryptography"]
 name = "univers-ems"
-version = "0.0.5"
+version = "0.0.6"
 description = "A custom Home Assistant integration for the Univers EMS solar monitoring app"
 readme = "README.md"
 requires-python = ">=3.12"

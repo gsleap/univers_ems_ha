@@ -48,7 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     inverter_asset_id: str = entry.data[CONF_INVERTER_ASSET_ID]
-    scan_interval = entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+    scan_interval = entry.options.get("scan_interval", entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL))
 
     coordinator = UniversEMSCoordinator(hass, client, inverter_asset_id, scan_interval)
 
@@ -115,8 +115,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
         if not number_entities and not select_entities:
             _LOGGER.error(
-                "send_forced_control: could not find Univers EMS control entities. "
-                "Has the integration loaded fully?"
+                "send_forced_control: could not find Univers EMS control entities. Has the integration loaded fully?"
             )
             return
 
@@ -158,9 +157,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 storage_asset_id=storage_asset_id,
                 changes=changes,
             )
-            _LOGGER.info(
-                "send_forced_control: accepted by inverter, commandId=%s", command_id
-            )
+            _LOGGER.info("send_forced_control: accepted by inverter, commandId=%s", command_id)
         except UniversEMSError as err:
             _LOGGER.error("send_forced_control failed: %s", err)
             return

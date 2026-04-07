@@ -21,6 +21,16 @@
       "already_configured": "This asset is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Univers EMS options",
+        "data": {
+          "scan_interval": "Poll interval (seconds)"
+        }
+      }
+    }
+  },
   "services": {
     "send_forced_control": {
       "name": "Send Forced Control",

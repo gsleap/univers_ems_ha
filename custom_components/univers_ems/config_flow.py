@@ -30,9 +30,7 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Required(CONF_ASSET_ID, default="a1b2c3d4"): str,
-        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.All(
-            int, vol.Range(min=10, max=3600)
-        ),
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=10, max=3600)),
     }
 )
 
@@ -42,9 +40,14 @@ class UniversEMSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> "UniversEMSOptionsFlow":
+        """Return the options flow handler."""
+        return UniversEMSOptionsFlow(config_entry)
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> config_entries.FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -70,7 +73,6 @@ class UniversEMSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(f"univers_ems_{user_input[CONF_ASSET_ID]}")
                 self._abort_if_unique_id_configured()
 
-                # Merge discovered device IDs into stored config data
                 entry_data = {
                     **user_input,
                     CONF_INVERTER_ASSET_ID: discovered["inverter_asset_id"],
@@ -92,4 +94,26 @@ class UniversEMSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=STEP_USER_SCHEMA,
             errors=errors,
+        )
+
+
+class UniversEMSOptionsFlow(config_entries.OptionsFlow):
+    """Options flow — allows changing scan_interval after initial setup."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._config_entry = config_entry
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> config_entries.FlowResult:
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current_interval = self._config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("scan_interval", default=current_interval): vol.All(int, vol.Range(min=10, max=3600)),
+                }
+            ),
         )

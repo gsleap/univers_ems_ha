@@ -62,34 +62,82 @@ No parameters are required — the service reads staged values from the control 
 
 ### Automation example — daily grid export
 
-This example sets the battery to discharge at 5 kW for 2 hours every weekday at 5 PM (peak tariff period):
+This example sets the battery to discharge at 7 kW for a calculated duration every weekday at 5:59 PM, targeting 50% SOC by 8 PM (assuming a 30 kWh battery):
 
 ```yaml
-automation:
-  - alias: "Battery export peak period"
-    trigger:
-      - platform: time
-        at: "17:00:00"
-    condition:
-      - condition: time
-        weekday: [mon, tue, wed, thu, fri]
-    action:
-      - service: select.select_option
-        target:
-          entity_id: select.univers_ems_solar_site_forced_mode
-        data:
-          option: Discharge
-      - service: number.set_value
-        target:
-          entity_id: number.univers_ems_solar_site_forced_discharge_power
-        data:
-          value: 5
-      - service: number.set_value
-        target:
-          entity_id: number.univers_ems_solar_site_forced_charge_discharge_period
-        data:
-          value: 120
-      - service: univers_ems.send_forced_control
+alias: "Battery discharge at peak tariff"
+description: >
+  At 5:59 PM, calculate how long to discharge at 7 kW to reach 50% SOC
+  by 8 PM, then send the control command.
+trigger:
+  - platform: time
+    at: "17:59:00"
+variables:
+  soc: >
+    {{ states('sensor.univers_ems_solar_site_battery_state_of_charge') | float(0) }}
+  available_kwh: >
+    {{ ((soc - 50) / 100) * 30 }}
+  duration_minutes: >
+    {{ [((available_kwh / 7) * 60) | round(0) | int, 120] | min }}
+condition:
+  - condition: template
+    value_template: "{{ soc > 50 and duration_minutes >= 10 }}"
+action:
+  - service: select.select_option
+    target:
+      entity_id: select.univers_ems_solar_site_forced_mode
+    data:
+      option: Discharge
+  - service: number.set_value
+    target:
+      entity_id: number.univers_ems_solar_site_forced_discharge_power
+    data:
+      value: 7
+  - service: number.set_value
+    target:
+      entity_id: number.univers_ems_solar_site_forced_charge_discharge_period
+    data:
+      value: "{{ duration_minutes }}"
+  - service: univers_ems.send_forced_control
+  - service: notify.persistent_notification
+    data:
+      title: "Battery discharge started"
+      message: >
+        SOC: {{ soc }}% — discharging at 7 kW for {{ duration_minutes }} minutes
+        ({{ available_kwh | round(1) }} kWh available above 50%)
+```
+
+### Automation example — daily AC charge
+
+This example charges the battery from AC at 10 kW every day from 11 AM to 2 PM:
+
+```yaml
+alias: "Battery charge from AC 11am to 2pm"
+description: "Every day at 11am, charge battery from AC until 2pm"
+trigger:
+  - platform: time
+    at: "11:00:00"
+action:
+  - service: select.select_option
+    target:
+      entity_id: select.univers_ems_solar_site_forced_mode
+    data:
+      option: Charge
+  - service: number.set_value
+    target:
+      entity_id: number.univers_ems_solar_site_forced_charge_power
+    data:
+      value: 10
+  - service: number.set_value
+    target:
+      entity_id: number.univers_ems_solar_site_forced_charge_discharge_period
+    data:
+      value: 180
+  - service: univers_ems.send_forced_control
+  - service: notify.persistent_notification
+    data:
+      title: "Battery charging started"
+      message: "Charging at 10 kW for 180 minutes (until 2pm)"
 ```
 
 ### Staging and pending state
@@ -102,7 +150,7 @@ Each control entity exposes three extra state attributes useful for dashboards a
 | `staged_value` | Value set locally but not yet sent |
 | `pending_send` | `true` if a staged value is waiting to be committed |
 
-Staged values are cleared automatically after a successful `send_forced_control` call, or on the next coordinator poll (every 60 seconds).
+Staged values are cleared automatically after a successful `send_forced_control` call, or on the next coordinator poll.
 
 ---
 
@@ -160,6 +208,10 @@ Staged values are cleared automatically after a successful `send_forced_control`
    * **Poll interval** — how often to fetch live data in seconds (default: 60)
 4. Click **Submit** — the integration will verify your credentials and auto-discover your inverter and battery device IDs before saving
 
+### Changing the poll interval after setup
+
+Go to **Settings → Devices & Services → Univers EMS → Configure** to change the poll interval without removing and re-adding the integration.
+
 ---
 
 ## Finding your Asset ID
@@ -174,32 +226,130 @@ The Asset ID is visible in the URL when you open the Univers EMS web portal:
 
 ## Energy Dashboard Setup
 
-The integration provides instantaneous power sensors (kW). To use them in the Home Assistant **Energy Dashboard**, you need to create **Riemann Sum helper** sensors to accumulate energy (kWh) over time.
+The integration provides instantaneous power sensors (kW). To use them in the Home Assistant **Energy Dashboard**, you need to create **Riemann Sum helper** sensors to accumulate energy (kWh) over time, and set the correct device class via `customize`.
 
-### Step 1 — Create Riemann Sum helpers
+### Step 1 — Add to configuration.yaml
 
-Go to **Settings → Devices & Services → Helpers → Add Helper → Integrate sensor** and create one helper for each of the following:
+```yaml
+homeassistant:
+  customize:
+    sensor.univers_grid_import_energy:
+      state_class: total_increasing
+      device_class: energy
+    sensor.univers_grid_export_energy:
+      state_class: total_increasing
+      device_class: energy
+    sensor.univers_pv_energy:
+      state_class: total_increasing
+      device_class: energy
+    sensor.univers_load_energy:
+      state_class: total_increasing
+      device_class: energy
+    sensor.univers_battery_charge_energy:
+      state_class: total_increasing
+      device_class: energy
+    sensor.univers_battery_discharge_energy:
+      state_class: total_increasing
+      device_class: energy
 
-| Helper name | Source sensor | Method | Precision |
-| --- | --- | --- | --- |
-| Univers PV Energy | `…pv_power` | Trapezoidal | 3 |
-| Univers Grid Import Energy | `…grid_import_power` | Trapezoidal | 3 |
-| Univers Grid Export Energy | `…grid_export_power` | Trapezoidal | 3 |
-| Univers Load Energy | `…load_power` | Trapezoidal | 3 |
-| Univers Battery Charge Energy | `…battery_charge_power` | Trapezoidal | 3 |
-| Univers Battery Discharge Energy | `…battery_discharge_power` | Trapezoidal | 3 |
+sensor:
+  - platform: integration
+    source: sensor.univers_ems_solar_site_pv_power
+    name: Univers PV Energy
+    unique_id: univers_pv_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+  - platform: integration
+    source: sensor.univers_ems_solar_site_grid_import_power
+    name: Univers Grid Import Energy
+    unique_id: univers_grid_import_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+  - platform: integration
+    source: sensor.univers_ems_solar_site_grid_export_power
+    name: Univers Grid Export Energy
+    unique_id: univers_grid_export_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+  - platform: integration
+    source: sensor.univers_ems_solar_site_load_power
+    name: Univers Load Energy
+    unique_id: univers_load_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+  - platform: integration
+    source: sensor.univers_ems_solar_site_battery_charge_power
+    name: Univers Battery Charge Energy
+    unique_id: univers_battery_charge_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+  - platform: integration
+    source: sensor.univers_ems_solar_site_battery_discharge_power
+    name: Univers Battery Discharge Energy
+    unique_id: univers_battery_discharge_energy
+    method: trapezoidal
+    unit_prefix: k
+    round: 3
+
+utility_meter:
+  univers_pv_energy_daily:
+    source: sensor.univers_pv_energy
+    name: Univers PV Energy Daily
+    cycle: daily
+    unique_id: univers_pv_energy_daily
+
+  univers_grid_import_energy_daily:
+    source: sensor.univers_grid_import_energy
+    name: Univers Grid Import Energy Daily
+    cycle: daily
+    unique_id: univers_grid_import_energy_daily
+
+  univers_grid_export_energy_daily:
+    source: sensor.univers_grid_export_energy
+    name: Univers Grid Export Energy Daily
+    cycle: daily
+    unique_id: univers_grid_export_energy_daily
+
+  univers_load_energy_daily:
+    source: sensor.univers_load_energy
+    name: Univers Load Energy Daily
+    cycle: daily
+    unique_id: univers_load_energy_daily
+
+  univers_battery_charge_energy_daily:
+    source: sensor.univers_battery_charge_energy
+    name: Univers Battery Charge Energy Daily
+    cycle: daily
+    unique_id: univers_battery_charge_energy_daily
+
+  univers_battery_discharge_energy_daily:
+    source: sensor.univers_battery_discharge_energy
+    name: Univers Battery Discharge Energy Daily
+    cycle: daily
+    unique_id: univers_battery_discharge_energy_daily
+```
 
 ### Step 2 — Configure the Energy Dashboard
 
 Go to **Settings → Energy** and assign:
 
-| Energy Dashboard field | Helper to use |
+| Energy Dashboard field | Sensor to use |
 | --- | --- |
-| ⚡ Solar production | Univers PV Energy |
-| 🔌 Grid consumption | Univers Grid Import Energy |
-| 🔄 Return to grid | Univers Grid Export Energy |
-| 🔋 Battery charged from | Univers Battery Charge Energy |
-| 🔋 Battery discharged to | Univers Battery Discharge Energy |
+| ⚡ Solar production | `sensor.univers_pv_energy` |
+| 🔌 Grid consumption | `sensor.univers_grid_import_energy` |
+| 🔄 Return to grid | `sensor.univers_grid_export_energy` |
+| 🔋 Battery charged from | `sensor.univers_battery_charge_energy` |
+| 🔋 Battery discharged to | `sensor.univers_battery_discharge_energy` |
 
 > **Note:** Riemann Sum helpers accumulate from the moment they are created. Historical data prior to setup will not be available.
 
@@ -297,4 +447,4 @@ Control commands are sent to:
 POST /hossain-bff/connect/v1.0/device/control
 ```
 
-Poll interval defaults to 60 seconds, configurable at setup time. The control endpoint only sends parameters that have changed from the last polled state, mirroring the behaviour of the Univers EMS web app.
+Poll interval defaults to 60 seconds, configurable at setup time or via **Settings → Devices & Services → Univers EMS → Configure**. The control endpoint only sends parameters that have changed from the last polled state, mirroring the behaviour of the Univers EMS web app.
