@@ -107,7 +107,10 @@ class UniversEMSOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current_interval = self._config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+        current_interval = self._config_entry.options.get(
+            "scan_interval",
+            self._config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL),
+        )
 
         return self.async_show_form(
             step_id="init",
