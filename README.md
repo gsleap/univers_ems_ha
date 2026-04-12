@@ -46,7 +46,17 @@ The control entities use a **stage-then-commit** pattern, mirroring how the Univ
 1. Set the select and/or number entities to the desired values in HA
 2. Call the `univers_ems.send_forced_control` service to send the changes to the inverter
 
-The service only sends parameters that have **changed** from the current API state — this is important because the inverter API rejects certain parameter combinations (e.g. sending a charge power value when switching to discharge mode).
+The service always sends the **full set of parameters** required for the selected mode — it does not diff against current state. This ensures the inverter always receives a complete, consistent command regardless of polling timing.
+
+The parameters sent depend on the selected mode:
+
+| Mode | Parameters sent |
+| --- | --- |
+| **Idle** | `ChargeOrDischarge = 0` |
+| **Charge** | `ChargeOrDischarge = 1`, `SettingMode = 0` (Duration), `ForcedChargePwr`, `ForcedChargeDischagrePeriod` |
+| **Discharge** | `ChargeOrDischarge = 2`, `SettingMode = 0` (Duration), `ForcedDischargePwr`, `ForcedChargeDischagrePeriod` |
+
+If no mode is staged or polled, the service defaults to **Idle**. If no power or period value is set, it defaults to **0**.
 
 After a successful send, the integration triggers an immediate coordinator refresh to confirm the new state from the API.
 
@@ -150,7 +160,7 @@ Each control entity exposes three extra state attributes useful for dashboards a
 | `staged_value` | Value set locally but not yet sent |
 | `pending_send` | `true` if a staged value is waiting to be committed |
 
-Staged values are cleared automatically after a successful `send_forced_control` call, or on the next coordinator poll.
+Staged values are cleared automatically on the next coordinator poll.
 
 ---
 
@@ -189,6 +199,7 @@ Staged values are cleared automatically after a successful `send_forced_control`
            ├── number.py
            ├── select.py
            ├── sensor.py
+           ├── services.yaml
            └── strings.json
    ```
 3. Restart Home Assistant
@@ -418,8 +429,10 @@ Check the HA logs for errors from `univers_ems`. Common causes:
 Check the HA logs for `univers_ems`. Common causes:
 
 * The integration has not fully loaded — wait for first coordinator refresh
-* No values have changed from the current API state — the service only sends diffs
 * The inverter rejected a parameter combination — check logs for the API error message
+
+**`Failed to load services.yaml` error in logs**
+Upgrade to v0.0.7 or later, which includes the missing `services.yaml` file.
 
 **Wrong sign on battery or grid sensors**
 The sign conventions follow the raw API values. If your system reports them inverted, please open an issue with details of your hardware configuration.
@@ -447,4 +460,29 @@ Control commands are sent to:
 POST /hossain-bff/connect/v1.0/device/control
 ```
 
-Poll interval defaults to 60 seconds, configurable at setup time or via **Settings → Devices & Services → Univers EMS → Configure**. The control endpoint only sends parameters that have changed from the last polled state, mirroring the behaviour of the Univers EMS web app.
+Poll interval defaults to 60 seconds, configurable at setup time or via **Settings → Devices & Services → Univers EMS → Configure**.
+
+The `send_forced_control` service always sends the full parameter set for the selected mode (Idle, Charge, or Discharge), including `SettingMode = 0` (Duration) for Charge and Discharge. Energy-based control (`SettingMode = 1`) is not yet supported.
+
+---
+
+## Changelog
+
+### v0.0.8
+- `send_forced_control` now always sends the full parameter set for the selected mode rather than diffing against last-polled state. This eliminates any risk of stale coordinator data causing missed updates.
+- `SettingMode` (`PUB_INV_Hossain.SettingMode`) is now always sent as `0` (Duration) with Charge and Discharge commands. Energy mode (`SettingMode = 1`) is recognised in constants but not yet supported.
+- `SettingMode` added to `CONTROL_MEASUREMENT_POINTS` so it is included in regular polls.
+
+### v0.0.7
+- Fixed: changing the poll interval via **Configure** had no effect — the options flow was reading from `entry.data` only, ignoring previously saved options values.
+- Fixed: `Failed to load services.yaml` error logged on startup — added missing `services.yaml` file.
+
+### v0.0.6
+- Poll interval is now configurable at setup time and via **Settings → Devices & Services → Univers EMS → Configure**.
+
+### v0.0.5
+- Added forced charge/discharge control via `select`, `number`, and `send_forced_control` service.
+- Auto-discovery of inverter and storage device IDs during setup.
+
+### v0.0.4
+- Initial release with sensor monitoring.

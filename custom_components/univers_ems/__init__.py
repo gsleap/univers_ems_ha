@@ -27,6 +27,11 @@ from .const import (
     MP_FORCED_CHARGE_PWR,
     MP_FORCED_DISCHARGE_PWR,
     MP_FORCED_PERIOD,
+    MP_SETTING_MODE,
+    CHARGE_OR_DISCHARGE_IDLE,
+    CHARGE_OR_DISCHARGE_CHARGE,
+    CHARGE_OR_DISCHARGE_DISCHARGE,
+    SETTING_MODE_DURATION,
 )
 from .coordinator import UniversEMSCoordinator
 
@@ -83,18 +88,26 @@ def _register_services(hass: HomeAssistant) -> None:
     """Register integration-level services."""
 
     async def handle_send_forced_control(call: ServiceCall) -> None:
-        """Read staged values from entities and send changed ones to the inverter."""
-        # Find the coordinator and config entry — we support only one entry for now
+        """Send forced charge/discharge parameters to the inverter.
+
+        Always sends the full set of parameters required for the selected mode,
+        regardless of whether values have changed since the last poll. This avoids
+        any risk of stale coordinator data causing missed updates.
+
+        - Idle:     sends ChargeOrDischarge = 0
+        - Charge:   sends ChargeOrDischarge = 1, SettingMode = 0 (Duration),
+                    ForcedChargePwr, ForcedChargeDischagrePeriod
+        - Discharge: sends ChargeOrDischarge = 2, SettingMode = 0 (Duration),
+                    ForcedDischargePwr, ForcedChargeDischagrePeriod
+        """
         domain_data: dict[str, UniversEMSCoordinator] = hass.data.get(DOMAIN, {})
         if not domain_data:
             _LOGGER.error("send_forced_control: no active Univers EMS config entries")
             return
 
-        # Use the first (and typically only) entry
         entry_id = next(iter(domain_data))
         coordinator: UniversEMSCoordinator = domain_data[entry_id]
 
-        # Get the config entry to retrieve storage_asset_id
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry is None:
             _LOGGER.error("send_forced_control: could not find config entry %s", entry_id)
@@ -102,11 +115,6 @@ def _register_services(hass: HomeAssistant) -> None:
 
         storage_asset_id: str = entry.data[CONF_STORAGE_ASSET_ID]
 
-        # Collect staged values from number and select entities
-        # We look up entities by their unique_id pattern
-        asset_id: str = entry.data[CONF_ASSET_ID]
-
-        # Gather staged values from entities stored on the coordinator
         from .number import UniversEMSNumberEntity
         from .select import UniversEMSModeSelect
 
@@ -119,38 +127,40 @@ def _register_services(hass: HomeAssistant) -> None:
             )
             return
 
-        # Build the set of current API values from coordinator data
-        control_data = coordinator.data.get("control", {}) if coordinator.data else {}
-
-        def _current_api_value(mp: str) -> int | None:
-            raw = control_data.get(mp, {}).get("value")
-            return int(raw) if raw is not None else None
-
-        # Build changes dict — only include values that differ from the API
-        changes: dict[str, int] = {}
-
-        # Mode (select)
+        # Determine the mode to send — default to Idle if unset
         mode_entity = select_entities.get(MP_CHARGE_OR_DISCHARGE)
-        if mode_entity is not None:
-            new_mode = mode_entity.get_staged_or_current_value()
-            cur_mode = _current_api_value(MP_CHARGE_OR_DISCHARGE)
-            if new_mode is not None and new_mode != cur_mode:
-                changes[MP_CHARGE_OR_DISCHARGE] = new_mode
+        mode_label: str = (mode_entity.current_option if mode_entity else None) or "Idle"
 
-        # Number entities
-        for mp_id in (MP_FORCED_CHARGE_PWR, MP_FORCED_DISCHARGE_PWR, MP_FORCED_PERIOD):
-            num_entity = number_entities.get(mp_id)
-            if num_entity is not None:
-                new_val = num_entity.get_staged_or_current()
-                cur_val = _current_api_value(mp_id)
-                if new_val is not None and new_val != cur_val:
-                    changes[mp_id] = new_val
+        def _num_value(mp: str) -> int:
+            """Return staged-or-current value for a number entity, defaulting to 0."""
+            entity = number_entities.get(mp)
+            if entity is None:
+                return 0
+            val = entity.get_staged_or_current()
+            return val if val is not None else 0
 
-        if not changes:
-            _LOGGER.info("send_forced_control: no changes to send")
-            return
+        # Build the full parameter set for the selected mode
+        if mode_label == "Charge":
+            changes = {
+                MP_CHARGE_OR_DISCHARGE: CHARGE_OR_DISCHARGE_CHARGE,
+                MP_SETTING_MODE: SETTING_MODE_DURATION,
+                MP_FORCED_CHARGE_PWR: _num_value(MP_FORCED_CHARGE_PWR),
+                MP_FORCED_PERIOD: _num_value(MP_FORCED_PERIOD),
+            }
+        elif mode_label == "Discharge":
+            changes = {
+                MP_CHARGE_OR_DISCHARGE: CHARGE_OR_DISCHARGE_DISCHARGE,
+                MP_SETTING_MODE: SETTING_MODE_DURATION,
+                MP_FORCED_DISCHARGE_PWR: _num_value(MP_FORCED_DISCHARGE_PWR),
+                MP_FORCED_PERIOD: _num_value(MP_FORCED_PERIOD),
+            }
+        else:
+            # Idle (default)
+            changes = {
+                MP_CHARGE_OR_DISCHARGE: CHARGE_OR_DISCHARGE_IDLE,
+            }
 
-        _LOGGER.info("send_forced_control: sending changes: %s", changes)
+        _LOGGER.info("send_forced_control: sending mode=%s params=%s", mode_label, changes)
 
         try:
             command_id = await coordinator.client.async_send_control(
@@ -161,14 +171,6 @@ def _register_services(hass: HomeAssistant) -> None:
         except UniversEMSError as err:
             _LOGGER.error("send_forced_control failed: %s", err)
             return
-
-        # Clear staged values on success
-        if mode_entity is not None and MP_CHARGE_OR_DISCHARGE in changes:
-            mode_entity.clear_staged()
-        for mp_id in (MP_FORCED_CHARGE_PWR, MP_FORCED_DISCHARGE_PWR, MP_FORCED_PERIOD):
-            num_entity = number_entities.get(mp_id)
-            if num_entity is not None and mp_id in changes:
-                num_entity.clear_staged()
 
         # Trigger an immediate coordinator refresh to confirm new state
         await coordinator.async_request_refresh()

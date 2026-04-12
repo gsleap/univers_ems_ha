@@ -50,18 +50,22 @@ MP_GRID_POWER = "PUB_SITE.METERActivePW"
 MP_LOAD_POWER = "ConsPower"
 MP_GEN_POWER = "SITE.GenActivePW"
 
-# Measurement point IDs — inverter-level control (new)
+# Measurement point IDs — inverter-level control
 MP_CHARGE_OR_DISCHARGE = "PUB_INV_Hossain.ChargeOrDischarge"
 MP_FORCED_CHARGE_PWR = "PUB_INV_Hossain.ForcedChargePwr"
 MP_FORCED_DISCHARGE_PWR = "PUB_INV_Hossain.ForcedDischargePwr"
 MP_FORCED_PERIOD = "PUB_INV_Hossain.ForcedChargeDischagrePeriod"
+MP_SETTING_MODE = "PUB_INV_Hossain.SettingMode"
 
-CONTROL_MEASUREMENT_POINTS = ",".join([
-    MP_CHARGE_OR_DISCHARGE,
-    MP_FORCED_CHARGE_PWR,
-    MP_FORCED_DISCHARGE_PWR,
-    MP_FORCED_PERIOD,
-])
+CONTROL_MEASUREMENT_POINTS = ",".join(
+    [
+        MP_CHARGE_OR_DISCHARGE,
+        MP_FORCED_CHARGE_PWR,
+        MP_FORCED_DISCHARGE_PWR,
+        MP_FORCED_PERIOD,
+        MP_SETTING_MODE,
+    ]
+)
 
 # ChargeOrDischarge mode values
 CHARGE_OR_DISCHARGE_IDLE = 0
@@ -73,6 +77,12 @@ CHARGE_OR_DISCHARGE_OPTIONS: dict[int, str] = {
     CHARGE_OR_DISCHARGE_CHARGE: "Charge",
     CHARGE_OR_DISCHARGE_DISCHARGE: "Discharge",
 }
+
+# SettingMode values
+# Duration mode: forced charge/discharge runs for a fixed time period (minutes)
+# Energy mode: not yet supported
+SETTING_MODE_DURATION = 0
+SETTING_MODE_ENERGY = 1  # Not yet supported
 
 # Forced power limits (kW)
 FORCED_POWER_MIN = 0

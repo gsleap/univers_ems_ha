@@ -4,6 +4,10 @@ Standalone test for Univers EMS forced charge/discharge control API.
 Discovers device IDs automatically from the site asset ID, reads current
 forced control settings, prompts for new values, and sends a control command.
 
+Mirrors the v0.0.8 integration behaviour: always sends the full parameter set
+for the selected mode rather than diffing against current state. SettingMode is
+always sent as 0 (Duration) for Charge and Discharge.
+
 Requires: pip install aiohttp cryptography
 
 Usage:
@@ -57,6 +61,11 @@ MP_CHARGE_OR_DISCHARGE = "PUB_INV_Hossain.ChargeOrDischarge"
 MP_FORCED_CHARGE_PWR = "PUB_INV_Hossain.ForcedChargePwr"
 MP_FORCED_DISCHARGE_PWR = "PUB_INV_Hossain.ForcedDischargePwr"
 MP_FORCED_PERIOD = "PUB_INV_Hossain.ForcedChargeDischagrePeriod"
+MP_SETTING_MODE = "PUB_INV_Hossain.SettingMode"
+
+# SettingMode values
+SETTING_MODE_DURATION = 0  # Duration-based (minutes) — supported
+SETTING_MODE_ENERGY = 1  # Energy-based (kWh) — not yet supported
 
 CONTROL_MEASUREMENT_POINTS = ",".join(
     [
@@ -64,6 +73,7 @@ CONTROL_MEASUREMENT_POINTS = ",".join(
         MP_FORCED_CHARGE_PWR,
         MP_FORCED_DISCHARGE_PWR,
         MP_FORCED_PERIOD,
+        MP_SETTING_MODE,
     ]
 )
 
@@ -146,6 +156,7 @@ def prompt_mode(default: int) -> int:
 
 async def main() -> None:
     print("Univers EMS — forced charge/discharge control test")
+    print("(Mirrors v0.0.8 integration: always sends full parameter set for selected mode)")
 
     username = input("Username (email): ").strip()
     password = getpass.getpass("Password: ")
@@ -260,6 +271,7 @@ async def main() -> None:
         cur_charge_pwr = read_mp(MP_FORCED_CHARGE_PWR)
         cur_discharge_pwr = read_mp(MP_FORCED_DISCHARGE_PWR)
         cur_period = read_mp(MP_FORCED_PERIOD)
+        cur_setting_mode = read_mp(MP_SETTING_MODE)
 
         if any(v is None for v in [cur_mode, cur_charge_pwr, cur_discharge_pwr, cur_period]):
             print("❌ One or more control measurement points missing from response")
@@ -270,37 +282,54 @@ async def main() -> None:
         cur_charge_pwr = int(cur_charge_pwr)
         cur_discharge_pwr = int(cur_discharge_pwr)
         cur_period = int(cur_period)
+        cur_setting_mode_int = int(cur_setting_mode) if cur_setting_mode is not None else None
+        setting_mode_label = (
+            {0: "Duration", 1: "Energy (not supported)"}.get(cur_setting_mode_int, "?")
+            if cur_setting_mode_int is not None
+            else "?"
+        )
 
         print("✅ Current values:")
         print(f"   Mode              : {cur_mode} ({CHARGE_OR_DISCHARGE_OPTIONS.get(cur_mode, '?')})")
+        print(
+            f"   Setting mode      : {cur_setting_mode_int if cur_setting_mode_int is not None else '?'} ({setting_mode_label})"
+        )
         print(f"   Forced charge pwr : {cur_charge_pwr} kW")
         print(f"   Forced disch. pwr : {cur_discharge_pwr} kW")
         print(f"   Period            : {cur_period} min")
 
         # ── Step 4: Prompt for new values ─────────────────────────────────────
         separator("Step 4: Enter new values (press Enter to keep current)")
+        print("  Note: SettingMode is always sent as 0 (Duration) — Energy mode not yet supported.\n")
+
         new_mode = prompt_mode(cur_mode)
-        new_charge_pwr = prompt_int("Forced charge power (kW)", cur_charge_pwr, 0, 100)
-        new_discharge_pwr = prompt_int("Forced discharge power (kW)", cur_discharge_pwr, 0, 100)
-        new_period = prompt_int("Period (minutes)", cur_period, 1, 1440)
 
-        # Build diff — only include parameters that actually changed.
-        # The API rejects "correlation" errors when unrelated power parameters
-        # are sent alongside a mismatched mode (e.g. ForcedChargePwr with Discharge).
-        # Mirroring the web app behaviour: only send what changed.
-        changes = {
-            MP_CHARGE_OR_DISCHARGE: (cur_mode, new_mode),
-            MP_FORCED_CHARGE_PWR: (cur_charge_pwr, new_charge_pwr),
-            MP_FORCED_DISCHARGE_PWR: (cur_discharge_pwr, new_discharge_pwr),
-            MP_FORCED_PERIOD: (cur_period, new_period),
-        }
-        changed_params = {k: v for k, (old, v) in changes.items() if old != v}
+        # Prompt only for parameters relevant to the chosen mode
+        if new_mode == 1:  # Charge
+            new_charge_pwr = prompt_int("Forced charge power (kW)", cur_charge_pwr, 0, 100)
+            new_period = prompt_int("Period (minutes)", cur_period, 1, 1440)
+            params = {
+                MP_CHARGE_OR_DISCHARGE: new_mode,
+                MP_SETTING_MODE: SETTING_MODE_DURATION,
+                MP_FORCED_CHARGE_PWR: new_charge_pwr,
+                MP_FORCED_PERIOD: new_period,
+            }
+        elif new_mode == 2:  # Discharge
+            new_discharge_pwr = prompt_int("Forced discharge power (kW)", cur_discharge_pwr, 0, 100)
+            new_period = prompt_int("Period (minutes)", cur_period, 1, 1440)
+            params = {
+                MP_CHARGE_OR_DISCHARGE: new_mode,
+                MP_SETTING_MODE: SETTING_MODE_DURATION,
+                MP_FORCED_DISCHARGE_PWR: new_discharge_pwr,
+                MP_FORCED_PERIOD: new_period,
+            }
+        else:  # Idle
+            params = {
+                MP_CHARGE_OR_DISCHARGE: 0,
+            }
 
-        print(f"\n  Parameters that will be sent ({len(changed_params)} changed):")
-        if not changed_params:
-            print("  No values changed — nothing to send.")
-            return
-        for cp_id, val in changed_params.items():
+        print(f"\n  Parameters that will be sent ({len(params)}):")
+        for cp_id, val in params.items():
             print(f"    {cp_id} = {val}")
 
         confirm = input("\n  Send these values? [y/N]: ").strip().lower()
@@ -311,8 +340,7 @@ async def main() -> None:
         # ── Step 5: Send control command ──────────────────────────────────────
         separator("Step 5: POST to /device/control")
         control_payload = [
-            {"assetId": storage_asset_id, "controlPointId": cp_id, "value": val}
-            for cp_id, val in changed_params.items()
+            {"assetId": storage_asset_id, "controlPointId": cp_id, "value": val} for cp_id, val in params.items()
         ]
         print(f"  Payload: {control_payload}")
 
@@ -333,7 +361,8 @@ async def main() -> None:
 
         # ── Step 6: Re-read to confirm ────────────────────────────────────────
         separator("Step 6: Re-read to confirm (allow a few seconds to apply)")
-        await asyncio.sleep(3)
+        print("Sleeping for 30 seconds to allow inverter to process request.")
+        await asyncio.sleep(30)
 
         async with session.post(
             ASSET_DETAIL_URL,
@@ -352,24 +381,28 @@ async def main() -> None:
         v_charge_pwr = read_verify(MP_FORCED_CHARGE_PWR)
         v_discharge_pwr = read_verify(MP_FORCED_DISCHARGE_PWR)
         v_period = read_verify(MP_FORCED_PERIOD)
+        v_setting_mode = read_verify(MP_SETTING_MODE)
 
         print("  Verified values:")
         print(
             f"   Mode              : {v_mode} ({CHARGE_OR_DISCHARGE_OPTIONS.get(int(v_mode) if v_mode is not None else -1, '?')})"
         )
+        print(f"   Setting mode      : {v_setting_mode}")
         print(f"   Forced charge pwr : {v_charge_pwr} kW")
         print(f"   Forced disch. pwr : {v_discharge_pwr} kW")
         print(f"   Period            : {v_period} min")
 
-        # Only verify the parameters we actually sent
         verify_map = {
             MP_CHARGE_OR_DISCHARGE: v_mode,
+            MP_SETTING_MODE: v_setting_mode,
             MP_FORCED_CHARGE_PWR: v_charge_pwr,
             MP_FORCED_DISCHARGE_PWR: v_discharge_pwr,
             MP_FORCED_PERIOD: v_period,
         }
         all_match = all(
-            verify_map[cp_id] is not None and int(verify_map[cp_id]) == val for cp_id, val in changed_params.items()
+            verify_map[cp_id] is not None and int(verify_map[cp_id]) == val
+            for cp_id, val in params.items()
+            if cp_id in verify_map
         )
 
         if all_match:
