@@ -78,7 +78,7 @@ class UniversEMSClient:
         timestamp = int(time.time() * 1000)
         url = f"{LOGIN_URL}?channel=Web&_sid_={timestamp}"
         payload = {
-            "account": self._username,
+            "account": base64.b64encode(self._username.encode()).decode(),
             "keyId": LOGIN_KEY_ID,
             "password": _encrypt_password(self._password),
         }

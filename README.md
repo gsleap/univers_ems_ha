@@ -468,21 +468,4 @@ The `send_forced_control` service always sends the full parameter set for the se
 
 ## Changelog
 
-### v0.0.8
-- `send_forced_control` now always sends the full parameter set for the selected mode rather than diffing against last-polled state. This eliminates any risk of stale coordinator data causing missed updates.
-- `SettingMode` (`PUB_INV_Hossain.SettingMode`) is now always sent as `0` (Duration) with Charge and Discharge commands. Energy mode (`SettingMode = 1`) is recognised in constants but not yet supported.
-- `SettingMode` added to `CONTROL_MEASUREMENT_POINTS` so it is included in regular polls.
-
-### v0.0.7
-- Fixed: changing the poll interval via **Configure** had no effect — the options flow was reading from `entry.data` only, ignoring previously saved options values.
-- Fixed: `Failed to load services.yaml` error logged on startup — added missing `services.yaml` file.
-
-### v0.0.6
-- Poll interval is now configurable at setup time and via **Settings → Devices & Services → Univers EMS → Configure**.
-
-### v0.0.5
-- Added forced charge/discharge control via `select`, `number`, and `send_forced_control` service.
-- Auto-discovery of inverter and storage device IDs during setup.
-
-### v0.0.4
-- Initial release with sensor monitoring.
+See [CHANGELOG.md](CHANGELOG.md).

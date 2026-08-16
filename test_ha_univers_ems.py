@@ -4,7 +4,7 @@ Runs UniversEMSClient.async_login() and async_get_data() exactly as HA would.
 Requires: pip install aiohttp cryptography
 
 Usage:
-    UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_integration.py
+    UNIVERS_EMS_ASSET_ID=YOUR_ASSET_ID python test_univers_ems_integration.py
 
 Place this file alongside the univers_ems/ folder, e.g.:
     /your/path/
@@ -105,7 +105,7 @@ except ImportError as e:
 ASSET_ID = os.environ.get("UNIVERS_EMS_ASSET_ID", "").strip()
 if not ASSET_ID:
     print("❌  UNIVERS_EMS_ASSET_ID environment variable not set.")
-    print("    Usage: UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_integration.py")
+    print("    Usage: UNIVERS_EMS_ASSET_ID=YOUR_ASSET_ID python test_univers_ems_integration.py")
     sys.exit(1)
 
 
@@ -144,7 +144,7 @@ async def main() -> None:
     print("Univers EMS — integration test (using actual api.py)")
     print("Component version: univers_ems.api.UniversEMSClient")
 
-    username = input("\nUsername (email): ").strip()
+    username = input("\nUsername: ").strip()
     password = getpass.getpass("Password: ")
 
     async with aiohttp.ClientSession() as http_session:

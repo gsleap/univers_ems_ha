@@ -11,7 +11,7 @@ always sent as 0 (Duration) for Charge and Discharge.
 Requires: pip install aiohttp cryptography
 
 Usage:
-    UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_control.py
+    UNIVERS_EMS_ASSET_ID=YOUR_ASSET_ID python test_univers_ems_control.py
 """
 
 import asyncio
@@ -41,7 +41,7 @@ LOGIN_KEY_ID = "FIXED_KEY_ID"
 SITE_ASSET_ID = os.environ.get("UNIVERS_EMS_ASSET_ID", "").strip()
 if not SITE_ASSET_ID:
     print("❌ UNIVERS_EMS_ASSET_ID environment variable not set.")
-    print("   Usage: UNIVERS_EMS_ASSET_ID=7g3Co6Bp python test_univers_ems_control.py")
+    print("   Usage: UNIVERS_EMS_ASSET_ID=YOUR_ASSET_ID python test_univers_ems_control.py")
     sys.exit(1)
 
 PUBLIC_KEY_PEM = (
@@ -158,7 +158,7 @@ async def main() -> None:
     print("Univers EMS — forced charge/discharge control test")
     print("(Mirrors v0.0.8 integration: always sends full parameter set for selected mode)")
 
-    username = input("Username (email): ").strip()
+    username = input("Username: ").strip()
     password = getpass.getpass("Password: ")
 
     async with aiohttp.ClientSession() as session:
@@ -167,7 +167,7 @@ async def main() -> None:
         ts = int(time.time() * 1000)
         url = f"{LOGIN_URL}?channel=Web&_sid_={ts}&appId={APP_ID}"
         payload = {
-            "account": username,
+            "account": base64.b64encode(username.encode()).decode(),
             "keyId": LOGIN_KEY_ID,
             "password": encrypt_password(password),
         }
